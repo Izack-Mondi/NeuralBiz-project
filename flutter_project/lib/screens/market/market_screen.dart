@@ -5,7 +5,6 @@ import '../../data/auth_controller.dart';
 import '../../models/product.dart';
 import '../../widgets/feedback/nexify_empty_state.dart';
 import '../../widgets/feedback/nexify_error_state.dart';
-import '../../widgets/feedback/nexify_loading.dart';
 import '../../widgets/feedback/nexify_shimmer.dart';
 import '../../widgets/nexify_collapsing_scroll_view.dart';
 import '../../widgets/nexify_transitions.dart';

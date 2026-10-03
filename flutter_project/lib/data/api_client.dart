@@ -474,7 +474,7 @@ class ApiClient {
         'input': {
           'userId': userId,
           'email': email,
-          if (verificationMethod != null) 'verificationMethod': verificationMethod,
+          'verificationMethod': ?verificationMethod,
         },
       },
     );
@@ -757,8 +757,8 @@ class ApiClient {
       {
         'input': {
           'first': first,
-          if (after != null) 'after': after,
-          if (type != null) 'type': type,
+          'after': ?after,
+          'type': ?type,
         },
       },
     );
@@ -814,11 +814,11 @@ class ApiClient {
         'unit': unit,
         'category': category,
         'sellerId': sellerId,
-        if (description != null) 'description': description,
-        if (location != null) 'location': location,
-        if (mediaUrl != null) 'mediaUrl': mediaUrl,
-        if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
-        if (mediaType != null) 'mediaType': mediaType,
+        'description': ?description,
+        'location': ?location,
+        'mediaUrl': ?mediaUrl,
+        'thumbnailUrl': ?thumbnailUrl,
+        'mediaType': ?mediaType,
       },
     );
 
@@ -862,12 +862,12 @@ class ApiClient {
       {
         'authorId': authorId,
         'type': type,
-        if (caption != null) 'caption': caption,
-        if (mediaUrl != null) 'mediaUrl': mediaUrl,
-        if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
-        if (mediaType != null) 'mediaType': mediaType,
-        if (productId != null) 'productId': productId,
-        if (serviceId != null) 'serviceId': serviceId,
+        'caption': ?caption,
+        'mediaUrl': ?mediaUrl,
+        'thumbnailUrl': ?thumbnailUrl,
+        'mediaType': ?mediaType,
+        'productId': ?productId,
+        'serviceId': ?serviceId,
       },
     );
 
@@ -921,14 +921,14 @@ class ApiClient {
         'name': name,
         'category': category,
         'providerId': providerId,
-        if (description != null) 'description': description,
-        if (location != null) 'location': location,
-        if (price != null) 'price': price,
-        if (availability != null) 'availability': availability,
-        if (experience != null) 'experience': experience,
-        if (mediaUrl != null) 'mediaUrl': mediaUrl,
-        if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
-        if (mediaType != null) 'mediaType': mediaType,
+        'description': ?description,
+        'location': ?location,
+        'price': ?price,
+        'availability': ?availability,
+        'experience': ?experience,
+        'mediaUrl': ?mediaUrl,
+        'thumbnailUrl': ?thumbnailUrl,
+        'mediaType': ?mediaType,
       },
     );
 
