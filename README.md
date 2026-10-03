@@ -1,17 +1,50 @@
-# flutter_project
+# Nexify
 
-A new Flutter project.
+Nexify is a Flutter mobile app for connecting people, trading products and services, and finding opportunities. It comes with a small Node.js GraphQL backend.
+
+## Features
+
+- Home feed with posts and videos
+- Marketplace: list products, offer services, and make requests
+- Network: connect with other users
+- Opportunities board
+- Sign in and local storage for listings and connection requests
+
+## Project Structure
+
+```
+Nexify-project/
+├── flutter_project/   # Flutter app (screens, widgets, data, theme)
+├── server.js          # Express + Apollo GraphQL backend
+└── package.json
+```
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+### Backend
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+npm install
+npm start
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+The server runs at `http://localhost:3000`:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- GraphQL: `/graphql`
+- Health check: `/health`
+- Status: `/api/status`
+
+### Flutter App
+
+```bash
+cd flutter_project
+flutter pub get
+flutter run
+```
+
+The app currently uses mock data for the feed, so it runs without the backend.
+
+## Tech Stack
+
+- Flutter and Dart (Provider, Hive)
+- Node.js, Express, Apollo Server, GraphQL
