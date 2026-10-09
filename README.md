@@ -1,6 +1,6 @@
-# Nexify
+# NeuralBiz
 
-Nexify is a Flutter mobile app for connecting people, trading products and services, and finding opportunities. It comes with a Node.js GraphQL backend.
+NeuralBiz is a Flutter mobile app for connecting people, trading products and services, and finding opportunities. It comes with a Node.js GraphQL backend.
 
 ## Features
 
@@ -13,7 +13,7 @@ Nexify is a Flutter mobile app for connecting people, trading products and servi
 ## Project Structure
 
 ```
-Nexify-project/
+NeuralBiz-project/
 ├── flutter_project/        # Flutter app (screens, widgets, data, theme)
 ├── server.js               # Starts the backend
 ├── src/
