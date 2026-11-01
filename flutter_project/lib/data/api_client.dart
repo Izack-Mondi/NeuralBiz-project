@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -59,9 +60,10 @@ class PostAuthor {
   const PostAuthor({
     required this.id,
     required this.fullName,
-    required this.email,
+    this.email = '',
     this.phoneNumber,
     this.location,
+    this.isVerified = false,
   });
 
   final String id;
@@ -69,6 +71,7 @@ class PostAuthor {
   final String email;
   final String? phoneNumber;
   final String? location;
+  final bool isVerified;
 
   factory PostAuthor.fromJson(Map<String, dynamic> json) {
     return PostAuthor(
@@ -77,6 +80,7 @@ class PostAuthor {
       email: json['email'] as String? ?? '',
       phoneNumber: json['phoneNumber'] as String?,
       location: json['location'] as String?,
+      isVerified: json['isVerified'] as bool? ?? false,
     );
   }
 }
@@ -177,12 +181,17 @@ class FeedPost {
     required this.id,
     required this.author,
     required this.type,
+    this.vertical,
     this.caption,
     this.mediaUrl,
     this.thumbnailUrl,
     required this.mediaType,
+    this.status,
+    this.rejectionReason,
     this.product,
     this.service,
+    this.offering,
+    this.media,
     required this.likesCount,
     required this.commentsCount,
     required this.viewsCount,
@@ -193,33 +202,48 @@ class FeedPost {
   final String id;
   final PostAuthor author;
   final String type;
+  final String? vertical;
   final String? caption;
   final String? mediaUrl;
   final String? thumbnailUrl;
   final String mediaType;
+  final String? status;
+  final String? rejectionReason;
   final PostProduct? product;
   final PostService? service;
+  final Map<String, dynamic>? offering;
+  final Map<String, dynamic>? media;
   final int likesCount;
   final int commentsCount;
   final int viewsCount;
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  bool get isVideo {
+    if (media != null && media!['hasVideo'] == true) return true;
+    return mediaType == 'VIDEO';
+  }
+
   factory FeedPost.fromJson(Map<String, dynamic> json) {
     return FeedPost(
       id: json['id'] as String,
       author: PostAuthor.fromJson(json['author'] as Map<String, dynamic>),
       type: json['type'] as String? ?? 'GENERAL',
+      vertical: json['vertical'] as String?,
       caption: json['caption'] as String?,
       mediaUrl: json['mediaUrl'] as String?,
       thumbnailUrl: json['thumbnailUrl'] as String?,
       mediaType: json['mediaType'] as String? ?? 'IMAGE',
-      product: json['product'] != null 
+      status: json['status'] as String?,
+      rejectionReason: json['rejectionReason'] as String?,
+      product: json['product'] != null
           ? PostProduct.fromJson(json['product'] as Map<String, dynamic>)
           : null,
-      service: json['service'] != null 
+      service: json['service'] != null
           ? PostService.fromJson(json['service'] as Map<String, dynamic>)
           : null,
+      offering: json['offering'] as Map<String, dynamic>?,
+      media: json['media'] as Map<String, dynamic>?,
       likesCount: json['likesCount'] as int? ?? 0,
       commentsCount: json['commentsCount'] as int? ?? 0,
       viewsCount: json['viewsCount'] as int? ?? 0,
@@ -230,10 +254,7 @@ class FeedPost {
 }
 
 class PageInfo {
-  const PageInfo({
-    required this.hasNextPage,
-    this.endCursor,
-  });
+  const PageInfo({required this.hasNextPage, this.endCursor});
 
   final bool hasNextPage;
   final String? endCursor;
@@ -247,10 +268,7 @@ class PageInfo {
 }
 
 class PostEdge {
-  const PostEdge({
-    required this.node,
-    required this.cursor,
-  });
+  const PostEdge({required this.node, required this.cursor});
 
   final FeedPost node;
   final String cursor;
@@ -264,10 +282,7 @@ class PostEdge {
 }
 
 class FeedConnection {
-  const FeedConnection({
-    required this.edges,
-    required this.pageInfo,
-  });
+  const FeedConnection({required this.edges, required this.pageInfo});
 
   final List<PostEdge> edges;
   final PageInfo pageInfo;
@@ -303,18 +318,14 @@ class AuthPayload {
       refreshToken: json['refreshToken'] as String?,
       verificationRequired: json['verificationRequired'] as bool?,
       message: json['message'] as String?,
-      user: ApiUser.fromJson(
-        json['user'] as Map<String, dynamic>,
-      ),
+      user: ApiUser.fromJson(json['user'] as Map<String, dynamic>),
     );
   }
 }
 
 class ApiClient {
-  ApiClient({
-    http.Client? client,
-    this._accessToken,
-  }) : _client = client ?? http.Client();
+  ApiClient({http.Client? client, this._accessToken})
+    : _client = client ?? http.Client();
 
   // --- REAL BACKEND CALL (disabled for offline UI development) ---
   static final Uri _endpoint = _resolveEndpoint();
@@ -338,15 +349,11 @@ class ApiClient {
 
     // Android emulator -> host computer.
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return Uri.parse(
-        'http://10.0.2.2:3000/graphql',
-      );
+      return Uri.parse('http://10.0.2.2:3000/graphql');
     }
 
     // Windows/Desktop -> same computer.
-    return Uri.parse(
-      'http://127.0.0.1:3000/graphql',
-    );
+    return Uri.parse('http://127.0.0.1:3000/graphql');
   }
 
   static Uri get endpoint => _endpoint;
@@ -365,7 +372,9 @@ class ApiClient {
     required String phoneNumber,
     String? verificationMethod,
   }) async {
-    debugPrint('DEBUG register called with verificationMethod: $verificationMethod');
+    debugPrint(
+      'DEBUG register called with verificationMethod: $verificationMethod',
+    );
     final result = await _request(
       r'''
         mutation Register($input: RegisterInput!) {
@@ -398,9 +407,7 @@ class ApiClient {
         },
       },
     );
-    return AuthPayload.fromJson(
-      result['register'] as Map<String, dynamic>,
-    );
+    return AuthPayload.fromJson(result['register'] as Map<String, dynamic>);
   }
 
   Future<AuthPayload> verifyRegistration({
@@ -431,10 +438,7 @@ class ApiClient {
         }
       ''',
       {
-        'input': {
-          'userId': userId,
-          'code': code,
-        },
+        'input': {'userId': userId, 'code': code},
       },
     );
     return AuthPayload.fromJson(
@@ -474,7 +478,8 @@ class ApiClient {
         'input': {
           'userId': userId,
           'email': email,
-          if (verificationMethod != null) 'verificationMethod': verificationMethod,
+          if (verificationMethod != null)
+            'verificationMethod': verificationMethod,
         },
       },
     );
@@ -511,10 +516,7 @@ class ApiClient {
         }
       ''',
       {
-        'input': {
-          'userId': userId,
-          'password': password,
-        },
+        'input': {'userId': userId, 'password': password},
       },
     );
     return AuthPayload.fromJson(
@@ -595,20 +597,13 @@ class ApiClient {
         }
       ''',
       {
-        'input': {
-          'identifier': identifier,
-          'password': password,
-        },
+        'input': {'identifier': identifier, 'password': password},
       },
     );
-    return AuthPayload.fromJson(
-      result['login'] as Map<String, dynamic>,
-    );
+    return AuthPayload.fromJson(result['login'] as Map<String, dynamic>);
   }
 
-  Future<AuthPayload> refreshSession({
-    required String refreshToken,
-  }) async {
+  Future<AuthPayload> refreshSession({required String refreshToken}) async {
     final result = await _request(
       r'''
         mutation RefreshSession($input: RefreshSessionInput!) {
@@ -633,9 +628,7 @@ class ApiClient {
         }
       ''',
       {
-        'input': {
-          'refreshToken': refreshToken,
-        },
+        'input': {'refreshToken': refreshToken},
       },
     );
     return AuthPayload.fromJson(
@@ -643,9 +636,7 @@ class ApiClient {
     );
   }
 
-  Future<String> logout({
-    required String refreshToken,
-  }) async {
+  Future<String> logout({required String refreshToken}) async {
     final result = await _request(
       r'''
         mutation Logout($input: LogoutInput!) {
@@ -653,9 +644,7 @@ class ApiClient {
         }
       ''',
       {
-        'input': {
-          'refreshToken': refreshToken,
-        },
+        'input': {'refreshToken': refreshToken},
       },
     );
 
@@ -663,8 +652,7 @@ class ApiClient {
   }
 
   Future<ApiUser> me() async {
-    final result = await _request(
-      r'''
+    final result = await _request(r'''
         query Me {
           me {
             id
@@ -679,18 +667,15 @@ class ApiClient {
             phoneVerified
           }
         }
-      ''',
-      const {},
-    );
+      ''', const {});
 
-    return ApiUser.fromJson(
-      result['me'] as Map<String, dynamic>,
-    );
+    return ApiUser.fromJson(result['me'] as Map<String, dynamic>);
   }
 
   Future<FeedConnection> getHomeFeed({
     int first = 20,
     String? after,
+    String? tab,
     String? type,
   }) async {
     final result = await _request(
@@ -701,10 +686,13 @@ class ApiClient {
               node {
                 id
                 type
+                vertical
                 caption
                 mediaUrl
                 thumbnailUrl
                 mediaType
+                status
+                rejectionReason
                 likesCount
                 commentsCount
                 viewsCount
@@ -713,9 +701,8 @@ class ApiClient {
                 author {
                   id
                   fullName
-                  email
-                  phoneNumber
                   location
+                  isVerified
                 }
                 product {
                   id
@@ -744,6 +731,27 @@ class ApiClient {
                   rating
                   reviews
                 }
+                offering {
+                  id
+                  title
+                  category
+                  description
+                  skills
+                  yearsExperience
+                  startingPrice
+                  priceUnit
+                  county
+                }
+                media {
+                  kind
+                  thumbnailUrl
+                  previewUrl
+                  blurhash
+                  durationSec
+                  width
+                  height
+                  hasVideo
+                }
               }
               cursor
             }
@@ -758,14 +766,333 @@ class ApiClient {
         'input': {
           'first': first,
           if (after != null) 'after': after,
+          if (tab != null) 'tab': tab,
           if (type != null) 'type': type,
         },
       },
     );
 
-    return FeedConnection.fromJson(
-      result['homeFeed'] as Map<String, dynamic>,
+    return FeedConnection.fromJson(result['homeFeed'] as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> playback({required String postId}) async {
+    final result = await _request(
+      r'''
+        query Playback($postId: ID!) {
+          playback(postId: $postId) {
+            hlsUrl
+            durationSec
+            expiresAt
+          }
+
+        }
+      ''',
+      {'postId': postId},
     );
+
+    return result['playback'] as Map<String, dynamic>;
+  }
+
+  Future<String> createServiceOffering({
+    required String title,
+    required String category,
+    required String vertical,
+    required String county,
+    String? description,
+    List<String> skills = const <String>[],
+    int yearsExperience = 0,
+    double? startingPrice,
+    String? priceUnit,
+    String? demoAssetId,
+  }) async {
+    final input = <String, dynamic>{
+      'title': title,
+      'category': category,
+      'vertical': vertical,
+      'county': county,
+      'skills': skills,
+      'yearsExperience': yearsExperience,
+      if (description != null && description.isNotEmpty)
+        'description': description,
+      if (startingPrice != null) 'startingPrice': startingPrice,
+      if (priceUnit != null && priceUnit.isNotEmpty) 'priceUnit': priceUnit,
+      if (demoAssetId != null) 'demoAssetId': demoAssetId,
+    };
+    final result = await _request(
+      r'''
+        mutation CreateServiceOffering($input: CreateServiceOfferingInput!) {
+          createServiceOffering(input: $input)
+        }
+      ''',
+      {'input': input},
+    );
+    return result['createServiceOffering'] as String;
+  }
+
+  Future<String> uploadVideoAndComplete(String path) async {
+    final file = File(path);
+    final sizeBytes = await file.length();
+    final contentType = _videoContentType(path);
+    final result = await _request(
+      r'''
+        mutation RequestVideoUpload($input: RequestVideoUploadInput!) {
+          requestVideoUpload(input: $input) {
+            assetId
+            uploadUrl
+          }
+        }
+      ''',
+      {
+        'input': {'contentType': contentType, 'sizeBytes': sizeBytes},
+      },
+    );
+    final upload = result['requestVideoUpload'] as Map<String, dynamic>;
+    final response = await _client.put(
+      Uri.parse(upload['uploadUrl'] as String),
+      headers: {'Content-Type': contentType},
+      body: await file.readAsBytes(),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException('Video upload failed (${response.statusCode}).');
+    }
+
+    final completed = await _request(
+      r'''
+        mutation CompleteUpload($assetId: ID!) {
+          completeUpload(assetId: $assetId) {
+            id
+          }
+        }
+      ''',
+      {'assetId': upload['assetId']},
+    );
+    return (completed['completeUpload'] as Map<String, dynamic>)['id']
+        as String;
+  }
+
+  String _videoContentType(String path) {
+    final extension = path.split('.').last.toLowerCase();
+    return switch (extension) {
+      'mov' => 'video/quicktime',
+      'webm' => 'video/webm',
+      _ => 'video/mp4',
+    };
+  }
+
+  Future<Map<String, dynamic>> searchUsers({
+    String? query,
+    int first = 20,
+    String? after,
+  }) async {
+    final result = await _request(
+      r'''
+        query SearchUsers($query: String, $first: Int, $after: String) {
+          searchUsers(query: $query, first: $first, after: $after) {
+            users {
+              id
+              user {
+                id
+                fullName
+                location
+                county
+                interests
+                emailVerified
+                phoneVerified
+                isVerified
+              }
+              connectionStatus
+              connectionRequestId
+            }
+            hasNextPage
+            endCursor
+          }
+        }
+      ''',
+      {'query': query, 'first': first, 'after': after},
+    );
+    return result['searchUsers'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> sendConnectionRequest({
+    required String receiverId,
+  }) async {
+    final result = await _request(
+      r'''
+        mutation SendConnectionRequest($receiverId: ID!) {
+          sendConnectionRequest(receiverId: $receiverId) {
+            id
+            sender {
+              id
+              fullName
+              location
+              county
+              interests
+              emailVerified
+              phoneVerified
+              isVerified
+            }
+            receiver {
+              id
+              fullName
+              location
+              county
+              interests
+              emailVerified
+              phoneVerified
+              isVerified
+            }
+            status
+            createdAt
+            updatedAt
+          }
+        }
+      ''',
+      {'receiverId': receiverId},
+    );
+    return result['sendConnectionRequest'] as Map<String, dynamic>;
+  }
+
+  Future<String> cancelConnectionRequest({required String requestId}) async {
+    final result = await _request(
+      r'''
+        mutation CancelConnectionRequest($requestId: ID!) {
+          cancelConnectionRequest(requestId: $requestId)
+        }
+      ''',
+      {'requestId': requestId},
+    );
+    return result['cancelConnectionRequest'] as String;
+  }
+
+  Future<String> acceptConnectionRequest({required String requestId}) async {
+    final result = await _request(
+      r'''
+        mutation AcceptConnectionRequest($requestId: ID!) {
+          acceptConnectionRequest(requestId: $requestId)
+        }
+      ''',
+      {'requestId': requestId},
+    );
+    return result['acceptConnectionRequest'] as String;
+  }
+
+  Future<String> rejectConnectionRequest({required String requestId}) async {
+    final result = await _request(
+      r'''
+        mutation RejectConnectionRequest($requestId: ID!) {
+          rejectConnectionRequest(requestId: $requestId)
+        }
+      ''',
+      {'requestId': requestId},
+    );
+    return result['rejectConnectionRequest'] as String;
+  }
+
+  Future<Map<String, dynamic>> getPendingRequests({
+    String type = 'all',
+    int first = 20,
+    String? after,
+  }) async {
+    final result = await _request(
+      r'''
+        query PendingRequests($type: String, $first: Int, $after: String) {
+          pendingRequests(type: $type, first: $first, after: $after) {
+            requests {
+              id
+              sender {
+                id
+                fullName
+                location
+                county
+                interests
+                emailVerified
+                phoneVerified
+                isVerified
+              }
+              receiver {
+                id
+                fullName
+                location
+                county
+                interests
+                emailVerified
+                phoneVerified
+                isVerified
+              }
+              status
+              createdAt
+              updatedAt
+            }
+            hasNextPage
+            endCursor
+          }
+        }
+      ''',
+      {'type': type, 'first': first, 'after': after},
+    );
+    return result['pendingRequests'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getConnections({
+    int first = 20,
+    String? after,
+  }) async {
+    final result = await _request(
+      r'''
+        query Connections($first: Int, $after: String) {
+          connections(first: $first, after: $after) {
+            connections {
+              id
+              user {
+                id
+                fullName
+                location
+                county
+                interests
+                emailVerified
+                phoneVerified
+                isVerified
+              }
+              createdAt
+            }
+            hasNextPage
+            endCursor
+          }
+        }
+      ''',
+      {'first': first, 'after': after},
+    );
+    return result['connections'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> opportunityInsights({
+    int first = 20,
+    String? after,
+  }) async {
+    final result = await _request(
+      r'''
+        query OpportunityInsights($first: Int, $after: String) {
+          opportunityInsights(first: $first, after: $after) {
+            insights {
+              id
+              key
+              vertical
+              category
+              region
+              score
+              payload
+              postId
+              createdAt
+            }
+            hasNextPage
+            endCursor
+          }
+        }
+      ''',
+      {'first': first, if (after != null) 'after': after},
+    );
+
+    return result['opportunityInsights'] as Map<String, dynamic>;
   }
 
   Future<String> createProduct({
@@ -943,8 +1270,7 @@ class ApiClient {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      if (_accessToken != null)
-        'Authorization': 'Bearer $_accessToken',
+      if (_accessToken != null) 'Authorization': 'Bearer $_accessToken',
     };
 
     late final http.Response response;
@@ -953,10 +1279,7 @@ class ApiClient {
       response = await _client.post(
         _endpoint,
         headers: headers,
-        body: jsonEncode({
-          'query': query,
-          'variables': variables,
-        }),
+        body: jsonEncode({'query': query, 'variables': variables}),
       );
 
       // Temporary debugging information.
@@ -992,12 +1315,10 @@ class ApiClient {
 
     final errors = body['errors'] as List<dynamic>?;
 
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300) {
-      final firstError =
-          errors?.isNotEmpty == true
-              ? errors!.first as Map<String, dynamic>?
-              : null;
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final firstError = errors?.isNotEmpty == true
+          ? errors!.first as Map<String, dynamic>?
+          : null;
 
       throw ApiException(
         firstError?['message'] as String? ??
@@ -1006,12 +1327,10 @@ class ApiClient {
     }
 
     if (errors != null && errors.isNotEmpty) {
-      final firstError =
-          errors.first as Map<String, dynamic>?;
+      final firstError = errors.first as Map<String, dynamic>?;
 
       throw ApiException(
-        firstError?['message'] as String? ??
-            'The GraphQL request failed.',
+        firstError?['message'] as String? ?? 'The GraphQL request failed.',
       );
     }
 

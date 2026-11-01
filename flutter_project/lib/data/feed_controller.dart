@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
+
 import 'api_client.dart';
 
 class FeedController extends ChangeNotifier {
   final ApiClient _apiClient;
   final bool useMockData;
+  final String tab;
 
-  FeedController(this._apiClient, {this.useMockData = true});
+  FeedController(this._apiClient, {this.tab = 'ALL', this.useMockData = false});
 
   List<PostEdge> _posts = [];
   bool _isLoading = false;
@@ -22,7 +24,9 @@ class FeedController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get hasNextPage => _hasNextPage;
 
-  Future<void> loadInitialFeed({String? type}) async {
+  String get feedTab => tab;
+
+  Future<void> loadInitialFeed() async {
     if (_isLoading) return;
 
     _isLoading = true;
@@ -41,10 +45,7 @@ class FeedController extends ChangeNotifier {
         _hasNextPage = false;
         _hasError = false;
       } else {
-        final connection = await _apiClient.getHomeFeed(
-          first: 20,
-          type: type,
-        );
+        final connection = await _apiClient.getHomeFeed(first: 20, tab: tab);
 
         _posts = connection.edges;
         _endCursor = connection.pageInfo.endCursor;
@@ -61,7 +62,7 @@ class FeedController extends ChangeNotifier {
     }
   }
 
-  Future<void> loadMoreFeed({String? type}) async {
+  Future<void> loadMoreFeed() async {
     if (_isLoadingMore || !_hasNextPage || _endCursor == null) return;
 
     _isLoadingMore = true;
@@ -75,7 +76,7 @@ class FeedController extends ChangeNotifier {
         final connection = await _apiClient.getHomeFeed(
           first: 20,
           after: _endCursor,
-          type: type,
+          tab: tab,
         );
 
         _posts.addAll(connection.edges);
@@ -93,7 +94,7 @@ class FeedController extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshFeed({String? type}) async {
+  Future<void> refreshFeed() async {
     if (_isLoading) return;
 
     _isLoading = true;
@@ -109,10 +110,7 @@ class FeedController extends ChangeNotifier {
         _hasNextPage = false;
         _hasError = false;
       } else {
-        final connection = await _apiClient.getHomeFeed(
-          first: 20,
-          type: type,
-        );
+        final connection = await _apiClient.getHomeFeed(first: 20, tab: tab);
 
         _posts = connection.edges;
         _endCursor = connection.pageInfo.endCursor;
@@ -138,7 +136,7 @@ class FeedController extends ChangeNotifier {
   // Mock data generation for development testing
   List<PostEdge> _generateMockPosts() {
     final now = DateTime.now();
-    
+
     return [
       PostEdge(
         node: FeedPost(
@@ -280,4 +278,16 @@ class FeedController extends ChangeNotifier {
       ),
     ];
   }
+}
+
+class BusinessFeedController extends FeedController {
+  BusinessFeedController(super.apiClient) : super(tab: 'BUSINESS');
+}
+
+class AgricultureFeedController extends FeedController {
+  AgricultureFeedController(super.apiClient) : super(tab: 'AGRICULTURE');
+}
+
+class OpportunityController extends FeedController {
+  OpportunityController(super.apiClient) : super(tab: 'OPPORTUNITY');
 }
