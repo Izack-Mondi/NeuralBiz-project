@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/feed_controller.dart';
 import '../../widgets/cards/feed_post_card.dart';
+import '../../widgets/cards/opportunity_card.dart';
 import '../../widgets/cards/service_feed_card.dart';
 import '../../widgets/feedback/nexify_empty_state.dart';
 import '../../widgets/feedback/nexify_error_state.dart';
@@ -17,6 +18,19 @@ class HomeFeedScreen extends StatefulWidget {
 
 class _HomeFeedScreenState extends State<HomeFeedScreen> {
   final ScrollController _scrollController = ScrollController();
+  static const _tabs = <String>['ALL', 'AGRICULTURE', 'BUSINESS'];
+  int _selectedTab = 0;
+
+  FeedController _activeController(BuildContext context) {
+    switch (_tabs[_selectedTab]) {
+      case 'AGRICULTURE':
+        return context.read<AgricultureFeedController>();
+      case 'BUSINESS':
+        return context.read<BusinessFeedController>();
+      default:
+        return context.read<FeedController>();
+    }
+  }
 
   @override
   void initState() {
@@ -27,7 +41,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
 
   void _initializeFeed() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final feedController = context.read<FeedController>();
+      final feedController = _activeController(context);
       feedController.loadInitialFeed();
     });
   }
@@ -39,8 +53,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
   }
 
   void _onScroll() {
-    final feedController = context.read<FeedController>();
-    
+    final feedController = _activeController(context);
+
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent * 0.8) {
       if (feedController.hasNextPage && !feedController.isLoadingMore) {
@@ -50,7 +64,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
   }
 
   Future<void> _onRefresh() async {
-    final feedController = context.read<FeedController>();
+    final feedController = _activeController(context);
     await feedController.refreshFeed();
   }
 
@@ -64,9 +78,12 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
             _buildTopBar(),
             _buildCategories(),
             Expanded(
-              child: Consumer<FeedController>(
-                builder: (context, feedController, child) {
-                  if (feedController.isLoading && feedController.posts.isEmpty) {
+              child: AnimatedBuilder(
+                animation: _activeController(context),
+                builder: (context, child) {
+                  final feedController = _activeController(context);
+                  if (feedController.isLoading &&
+                      feedController.posts.isEmpty) {
                     return const Center(child: NexifyLoading());
                   }
 
@@ -74,7 +91,9 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
                     return Center(
                       child: NexifyErrorState(
                         title: 'Feed Error',
-                        message: feedController.errorMessage ?? 'Failed to load feed',
+                        message:
+                            feedController.errorMessage ??
+                            'Failed to load feed',
                         onRetry: () {
                           feedController.clearError();
                           feedController.loadInitialFeed();
@@ -98,7 +117,8 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
                     child: ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: feedController.posts.length + 
+                      itemCount:
+                          feedController.posts.length +
                           (feedController.isLoadingMore ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index >= feedController.posts.length) {
@@ -113,7 +133,14 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
                         }
 
                         final post = feedController.posts[index].node;
-                        
+                        if (post.type == 'OPPORTUNITY') {
+                          return OpportunityCard(
+                            title: post.author.fullName,
+                            value: post.caption ?? 'Opportunity',
+                            meta: post.author.location,
+                          );
+                        }
+
                         // Use service card for SERVICE type, regular card for others
                         if (post.type == 'SERVICE' && post.service != null) {
                           return ServiceFeedCard(
@@ -138,7 +165,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
                             },
                           );
                         }
-                        
+
                         return FeedPostCard(
                           post: post,
                           onLike: () {
@@ -234,8 +261,7 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
   }
 
   Widget _buildCategories() {
-    final categories = ['All', 'Agriculture', 'Business', 'Nearby'];
-    int selectedIndex = 0;
+    final categories = ['All', 'Agriculture', 'Business'];
 
     return SizedBox(
       height: 76,
@@ -244,14 +270,15 @@ class _HomeFeedScreenState extends State<HomeFeedScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 15),
         itemCount: categories.length,
         itemBuilder: (context, index) {
-          final selected = selectedIndex == index;
+          final selected = _selectedTab == index;
 
           return GestureDetector(
             onTap: () {
-              setState(() {
-                selectedIndex = index;
+              if (_selectedTab == index) return;
+              setState(() => _selectedTab = index);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _activeController(context).loadInitialFeed();
               });
-              // TODO: Filter feed by category
             },
             child: Container(
               margin: const EdgeInsets.only(right: 14),

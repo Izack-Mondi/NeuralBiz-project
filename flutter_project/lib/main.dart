@@ -19,17 +19,25 @@ Future<void> main() async {
   await Hive.openBox('connection_requests');
 
   final apiClient = ApiClient();
-  final feedController = FeedController(apiClient, useMockData: true);
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthController()),
+        ChangeNotifierProvider(
+          create: (_) => AuthController(apiClient: apiClient),
+        ),
         ChangeNotifierProvider(create: (_) => ProductRepository()),
         ChangeNotifierProvider(create: (_) => SaleRequestRepository()),
         ChangeNotifierProvider(create: (_) => ConnectionRequestRepository()),
         ChangeNotifierProvider(create: (_) => LocalStorage()),
-        ChangeNotifierProvider.value(value: feedController),
+        ChangeNotifierProvider(create: (_) => FeedController(apiClient)),
+        ChangeNotifierProvider(
+          create: (_) => BusinessFeedController(apiClient),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AgricultureFeedController(apiClient),
+        ),
+        ChangeNotifierProvider(create: (_) => OpportunityController(apiClient)),
         Provider<ApiClient>(create: (_) => apiClient),
       ],
       child: const MyApp(),

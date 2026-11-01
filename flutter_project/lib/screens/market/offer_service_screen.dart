@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../data/api_client.dart';
 import '../../widgets/media_picker.dart';
 
 class OfferServiceScreen extends StatefulWidget {
@@ -16,12 +19,16 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
   final TextEditingController _availabilityController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _videoController = TextEditingController();
-  final TextEditingController _customCategoryController = TextEditingController();
+  final TextEditingController _customCategoryController =
+      TextEditingController();
 
   String _selectedService = 'Veterinary Services';
   bool _showCustomCategory = false;
   String? _imageFilePath;
   String? _videoFilePath;
+  String _selectedVertical = 'AGRICULTURE';
+  String _selectedCounty = 'Nairobi';
+  bool _isSubmitting = false;
 
   final List<String> _serviceTypes = [
     'Veterinary Services',
@@ -51,10 +58,11 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
     super.dispose();
   }
 
-  void _submitService() {
+  Future<void> _submitService() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (_isSubmitting) return;
 
     final name = _serviceNameController.text.trim();
     final price = _priceController.text.trim();
@@ -67,6 +75,34 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
         ? _customCategoryController.text.trim()
         : '';
     final String categoryValue = isOtherCategory ? 'Other' : _selectedService;
+
+    setState(() => _isSubmitting = true);
+    try {
+      final apiClient = context.read<ApiClient>();
+      String? assetId;
+      if (_videoFilePath != null) {
+        assetId = await apiClient.uploadVideoAndComplete(_videoFilePath!);
+      }
+      await apiClient.createServiceOffering(
+        title: name,
+        category: categoryValue,
+        vertical: _selectedVertical,
+        county: _selectedCounty,
+        description: description.isEmpty ? null : description,
+        priceUnit: '/session',
+        startingPrice: double.tryParse(price),
+        demoAssetId: assetId,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not publish service: $error')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
 
     final serviceListing = {
       'name': name,
@@ -92,7 +128,9 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
           ? customSpecialization
           : categoryValue,
       'rate': price.isEmpty ? 'Price negotiable' : 'KSh $price',
-      'availabilityText': availability.isEmpty ? 'Available on request' : availability,
+      'availabilityText': availability.isEmpty
+          ? 'Available on request'
+          : availability,
     };
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -115,7 +153,11 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 21),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+            size: 21,
+          ),
         ),
         title: const Text(
           'Offer a Service',
@@ -172,45 +214,76 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                 _buildLabel('Service category'),
                 const SizedBox(height: 8),
                 _buildDropdown(
-                 value: _selectedService,
-                 items: _serviceTypes,
-                 onChanged: (value) {
-                   if (value != null) {
-                     setState(() {
-                       _selectedService = value;
-                       _showCustomCategory = value == 'Other';
-                       if (value != 'Other') {
-                         _customCategoryController.clear();
-                       }
-                     });
-                   }
-                 },
+                  value: _selectedService,
+                  items: _serviceTypes,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _selectedService = value;
+                        _showCustomCategory = value == 'Other';
+                        if (value != 'Other') {
+                          _customCategoryController.clear();
+                        }
+                      });
+                    }
+                  },
                 ),
                 AnimatedSwitcher(
-                 duration: const Duration(milliseconds: 220),
-                 switchInCurve: Curves.easeOutCubic,
-                 switchOutCurve: Curves.easeInCubic,
-                 child: _showCustomCategory
-                     ? Column(
-                         key: const ValueKey('custom_service_category'),
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         children: [
-                           const SizedBox(height: 18),
-                           _buildLabel('Specify your specialization'),
-                           const SizedBox(height: 8),
-                           _buildTextField(
-                             controller: _customCategoryController,
-                             hintText:
-                                 'e.g. Poultry farm management, bookkeeping, graphic design...',
-                             icon: Icons.edit_outlined,
-                             validator: (value) => _selectedService == 'Other' &&
-                                     (value == null || value.trim().isEmpty)
-                                 ? 'Please specify your area of specialization.'
-                                 : null,
-                           ),
-                         ],
-                       )
-                     : const SizedBox.shrink(key: ValueKey('service_category_hidden')),
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _showCustomCategory
+                      ? Column(
+                          key: const ValueKey('custom_service_category'),
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 18),
+                            _buildLabel('Specify your specialization'),
+                            const SizedBox(height: 8),
+                            _buildTextField(
+                              controller: _customCategoryController,
+                              hintText: 'e.g. Poultry farm management, bookkeeping, graphic design...',
+                              icon: Icons.edit_outlined,
+                              validator: (value) =>
+                                  _selectedService == 'Other' &&
+                                      (value == null || value.trim().isEmpty)
+                                  ? 'Please specify your area of specialization.'
+                                  : null,
+                            ),
+                          ],
+                        )
+                      : const SizedBox.shrink(
+                          key: ValueKey('service_category_hidden'),
+                        ),
+                ),
+                const SizedBox(height: 18),
+                _buildLabel('Vertical'),
+                const SizedBox(height: 8),
+                _buildDropdown(
+                  value: _selectedVertical,
+                  items: const ['AGRICULTURE', 'BUSINESS'],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _selectedVertical = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 18),
+                _buildLabel('Kenyan county'),
+                const SizedBox(height: 8),
+                _buildDropdown(
+                  value: _selectedCounty,
+                  items: const [
+                    'Nairobi',
+                    'Kiambu',
+                    'Nakuru',
+                    'Mombasa',
+                    'Kisumu',
+                    'Uasin Gishu',
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => _selectedCounty = value);
+                  },
                 ),
                 const SizedBox(height: 18),
                 Row(
@@ -267,14 +340,20 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                     fillColor: const Color(0xFF0A0F1C),
                     hintText: 'Explain the service, your experience, what clients can expect, and the results you deliver.',
                     hintStyle: const TextStyle(color: Color(0xFF6B7280)),
-                    prefixIcon: const Icon(Icons.description_outlined, color: Color(0xFF8B95A5)),
+                    prefixIcon: const Icon(
+                      Icons.description_outlined,
+                      color: Color(0xFF8B95A5),
+                    ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: const BorderSide(color: Color(0xFF182131)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: const BorderSide(color: Color(0xFF22C55E), width: 1.3),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF22C55E),
+                        width: 1.3,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.all(16),
                   ),
@@ -301,8 +380,8 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Text(
-                      'Publish service',
+                    child: Text(
+                      _isSubmitting ? 'Publishing...' : 'Publish service',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -363,7 +442,9 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _imageFilePath == null ? 'Upload a service image' : 'Image selected',
+                    _imageFilePath == null
+                        ? 'Upload a service image'
+                        : 'Image selected',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -375,10 +456,7 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                     _imageFilePath == null
                         ? 'Add a banner or profile image to help clients recognize your service.'
                         : 'Tap to replace the selected image.',
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
                   ),
                 ],
               ),
@@ -423,7 +501,9 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
-                _videoFilePath == null ? Icons.videocam_outlined : Icons.video_file,
+                _videoFilePath == null
+                    ? Icons.videocam_outlined
+                    : Icons.video_file,
                 color: const Color(0xFF22C55E),
                 size: 26,
               ),
@@ -434,7 +514,9 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _videoFilePath == null ? 'Upload a service video or demo' : 'Video selected',
+                    _videoFilePath == null
+                        ? 'Upload a service video or demo'
+                        : 'Video selected',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -446,10 +528,7 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
                     _videoFilePath == null
                         ? 'Show your process, skill, or a quick before-and-after proof.'
                         : 'Tap to replace the selected video.',
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
                   ),
                 ],
               ),
@@ -501,7 +580,10 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFEF4444)),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 14,
+        ),
       ),
     );
   }
@@ -526,10 +608,7 @@ class _OfferServiceScreenState extends State<OfferServiceScreen> {
           icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70),
           style: const TextStyle(color: Colors.white, fontSize: 14),
           items: items.map((item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(item),
-            );
+            return DropdownMenuItem<String>(value: item, child: Text(item));
           }).toList(),
           onChanged: onChanged,
         ),
