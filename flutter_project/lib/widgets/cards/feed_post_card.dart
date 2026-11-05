@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/theme/neuralbiz_colors.dart';
 import '../../data/api_client.dart';
+import '../home/engagement_row.dart';
 import 'lazy_video_player.dart';
 
 class FeedPostCard extends StatelessWidget {
@@ -8,7 +12,9 @@ class FeedPostCard extends StatelessWidget {
   final VoidCallback? onLike;
   final VoidCallback? onComment;
   final VoidCallback? onShare;
+  final VoidCallback? onSave;
   final VoidCallback? onProductTap;
+  final bool isActive;
 
   const FeedPostCard({
     super.key,
@@ -16,24 +22,27 @@ class FeedPostCard extends StatelessWidget {
     this.onLike,
     this.onComment,
     this.onShare,
+    this.onSave,
     this.onProductTap,
+    this.isActive = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color(0xFF0A0F1C),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: NeuralBizColors.backgroundSurface,
+      margin: EdgeInsets.zero,
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        side: const BorderSide(color: NeuralBizColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(),
-          if (post.caption != null && post.caption!.isNotEmpty)
-            _buildCaption(),
-          _buildMedia(),
+          if (post.caption != null && post.caption!.isNotEmpty) _buildCaption(),
+          _buildMedia(context),
           if (post.product != null) _buildProductInfo(),
           _buildActions(),
         ],
@@ -49,7 +58,9 @@ class FeedPostCard extends StatelessWidget {
           CircleAvatar(
             backgroundColor: const Color(0xFF22C55E),
             child: Text(
-              post.author.fullName[0].toUpperCase(),
+              post.author.fullName.isEmpty
+                  ? '?'
+                  : post.author.fullName[0].toUpperCase(),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -126,39 +137,38 @@ class FeedPostCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Text(
         post.caption!,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-        ),
+        style: const TextStyle(color: Colors.white, fontSize: 15),
       ),
     );
   }
 
-  Widget _buildMedia() {
+  Widget _buildMedia(BuildContext context) {
     if (post.mediaUrl == null && post.mediaType == 'TEXT') {
       return const SizedBox.shrink();
     }
 
     if (post.mediaType == 'VIDEO') {
-      return _buildVideoPlayer();
+      return _buildVideoPlayer(context);
     }
 
     return _buildImage();
   }
 
   Widget _buildImage() {
+    final imageUrl =
+        post.media?['thumbnailUrl'] as String? ??
+        post.thumbnailUrl ??
+        (post.mediaType == 'IMAGE' ? post.mediaUrl : null);
     return Container(
-      height: 300,
-      margin: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF111214),
         borderRadius: BorderRadius.circular(12),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: post.thumbnailUrl != null || post.mediaUrl != null
+        child: imageUrl != null
             ? Image.network(
-                post.thumbnailUrl ?? post.mediaUrl!,
+                imageUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return const Center(
@@ -181,28 +191,14 @@ class FeedPostCard extends StatelessWidget {
     );
   }
 
-  Widget _buildVideoPlayer() {
-    if (post.mediaUrl == null) {
-      return Container(
-        height: 300,
-        margin: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF111214),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.video_library_outlined,
-            color: Color(0xFF22C55E),
-            size: 50,
-          ),
-        ),
-      );
-    }
-
+  Widget _buildVideoPlayer(BuildContext context) {
     return LazyVideoPlayer(
-      videoUrl: post.mediaUrl!,
-      thumbnailUrl: post.thumbnailUrl,
+      videoUrl: post.mediaUrl,
+      postId: post.id,
+      apiClient: context.read<ApiClient>(),
+      previewUrl: post.media?['previewUrl'] as String?,
+      thumbnailUrl: post.media?['thumbnailUrl'] as String? ?? post.thumbnailUrl,
+      isActive: isActive,
     );
   }
 
@@ -267,10 +263,7 @@ class FeedPostCard extends StatelessWidget {
               ),
               child: const Text(
                 'View',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -281,71 +274,30 @@ class FeedPostCard extends StatelessWidget {
 
   Widget _buildActions() {
     return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 10),
+      child: Column(
         children: [
-          _buildActionButton(
-            icon: Icons.favorite_border,
-            count: post.likesCount,
-            onTap: onLike,
+          EngagementRow(
+            likes: post.likesCount,
+            comments: post.commentsCount,
+            onLike: onLike,
+            onComment: onComment,
+            onShare: onShare,
+            onSave: onSave,
           ),
-          const SizedBox(width: 24),
-          _buildActionButton(
-            icon: Icons.chat_bubble_outline,
-            count: post.commentsCount,
-            onTap: onComment,
-          ),
-          const SizedBox(width: 24),
-          _buildActionButton(
-            icon: Icons.share_outlined,
-            count: null,
-            onTap: onShare,
-          ),
-          const Spacer(),
-          Text(
-            _formatDate(post.createdAt),
-            style: const TextStyle(
-              color: Color(0xFF8A8C92),
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required int? count,
-    required VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white, size: 24),
-          if (count != null) ...[
-            const SizedBox(width: 8),
-            Text(
-              _formatCount(count),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _formatDate(post.createdAt),
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
+                color: NeuralBizColors.textMuted,
+                fontSize: 11,
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
-  }
-
-  String _formatCount(int count) {
-    if (count >= 1000000) {
-      return '${(count / 1000000).toStringAsFixed(1)}M';
-    } else if (count >= 1000) {
-      return '${(count / 1000).toStringAsFixed(1)}K';
-    }
-    return count.toString();
   }
 
   String _formatDate(DateTime date) {
